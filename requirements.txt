@@ -1,0 +1,23 @@
+fastapi
+uvicorn
+streamlit
+
+pydantic
+python-dotenv
+
+pdfplumber
+pymupdf
+opencv-python
+easyocr
+
+groq
+google-generativeai
+
+pandas
+openpyxl
+
+chromadb
+
+# Optional but useful
+tqdm
+loguru
