@@ -6,59 +6,48 @@ class PDFExtractionError(Exception):
     pass
 
 
-def extract(file_path: str) -> Dict[str, Any]:
-    """
-    Extract text and structured blocks from a PDF file.
+class PDFPlumberService:
+    def extract(self, file_path: str) -> Dict[str, Any]:
+        try:
+            full_text = []
+            blocks: List[Dict[str, Any]] = []
 
-    Args:
-        file_path (str): Path to the PDF file
+            with pdfplumber.open(file_path) as pdf:
+                for page_number, page in enumerate(pdf.pages, start=1):
 
-    Returns:
-        dict: standardized extraction output
-    """
-    try:
-        full_text = []
-        blocks: List[Dict[str, Any]] = []
+                    page_text = page.extract_text() or ""
+                    full_text.append(page_text)
 
-        with pdfplumber.open(file_path) as pdf:
-            for page_number, page in enumerate(pdf.pages, start=1):
+                    words = page.extract_words()
 
-                # Extract full page text
-                page_text = page.extract_text() or ""
-                full_text.append(page_text)
+                    lines = {}
+                    for word in words:
+                        key = round(word["top"], 1)
+                        lines.setdefault(key, []).append(word)
 
-                # Extract word-level data
-                words = page.extract_words()
+                    for line_words in lines.values():
+                        line_words = sorted(line_words, key=lambda w: w["x0"])
+                        line_text = " ".join(w["text"] for w in line_words)
 
-                # Group words into lines
-                lines = {}
-                for word in words:
-                    key = round(word["top"], 1)
-                    lines.setdefault(key, []).append(word)
+                        x0 = min(w["x0"] for w in line_words)
+                        top = min(w["top"] for w in line_words)
+                        x1 = max(w["x1"] for w in line_words)
+                        bottom = max(w["bottom"] for w in line_words)
 
-                for line_words in lines.values():
-                    line_words = sorted(line_words, key=lambda w: w["x0"])
-                    line_text = " ".join(w["text"] for w in line_words)
+                        blocks.append({
+                            "text": line_text,
+                            "bbox": [x0, top, x1, bottom],
+                            "page": page_number
+                        })
 
-                    x0 = min(w["x0"] for w in line_words)
-                    top = min(w["top"] for w in line_words)
-                    x1 = max(w["x1"] for w in line_words)
-                    bottom = max(w["bottom"] for w in line_words)
-
-                    blocks.append({
-                        "text": line_text,
-                        "bbox": [x0, top, x1, bottom],
-                        "page": page_number
-                    })
-
-        return {
-            "text": "\n".join(full_text),
-            "blocks": blocks,
-            "metadata": {
-                "source": "pdf",
-                "pages": len(full_text)
+            return {
+                "text": "\n".join(full_text),
+                "blocks": blocks,
+                "metadata": {
+                    "source": "pdf",
+                    "pages": len(full_text)
+                }
             }
-        }
 
-    except Exception as e:
-        raise PDFExtractionError(f"Failed to extract PDF: {str(e)}")
+        except Exception as e:
+            raise PDFExtractionError(f"Failed to extract PDF: {str(e)}")
