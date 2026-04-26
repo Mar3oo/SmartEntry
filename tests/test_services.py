@@ -1,7 +1,8 @@
 import pytest
 from app.services.detection.input_classifier import classify, InputClassifierError
-from app.services.pdf.pdfplumber_service import extract
+from app.services.pdf.pdfplumber_service import extract as pdf_extract
 from app.services.pdf.pymupdf_service import convert_to_images
+from app.services.ocr.easyocr_service import extract as ocr_extract
 
 
 def test_classify_pdf(tmp_path):
@@ -31,7 +32,7 @@ def test_classify_nonexistent():
 def test_pdfplumber_extract():
     file_path = "tests/fixtures/sample_invoice.pdf"
 
-    result = extract(file_path)
+    result = pdf_extract(file_path)
 
     assert "text" in result
     assert "blocks" in result
@@ -52,3 +53,17 @@ def test_pymupdf_convert_to_images():
     # check first item is image
     from PIL.Image import Image
     assert isinstance(images[0], Image)
+
+def test_easyocr_extract():
+    file_path = "tests/fixtures/sample_invoice.pdf"
+
+    images = convert_to_images(file_path)
+    result = ocr_extract(images)
+
+    assert "text" in result
+    assert "blocks" in result
+    assert "metadata" in result
+
+    assert isinstance(result["text"], str)
+    assert isinstance(result["blocks"], list)
+    assert result["metadata"]["source"] == "ocr"
