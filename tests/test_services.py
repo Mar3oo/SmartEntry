@@ -5,6 +5,8 @@ from app.services.pdf.pymupdf_service import convert_to_images
 # from app.services.ocr.easyocr_service import extract as ocr_extract
 from app.services.pdf.pdfplumber_service import PDFPlumberService
 from app.services.ocr.easyocr_service import EasyOCRService
+from app.services.ocr.ocr_pipeline_service import OCRPipelineService
+from app.services.vision.preprocessing import preprocess_image
 
 
 def test_classify_pdf(tmp_path):
@@ -71,3 +73,24 @@ def test_easyocr_extract():
     assert isinstance(result["text"], str)
     assert isinstance(result["blocks"], list)
     assert result["metadata"]["source"] == "ocr"
+
+def test_ocr_pipeline_service():
+    service = OCRPipelineService()
+
+    file_path = "tests/fixtures/sample_invoice.pdf"
+    result = service.extract(file_path)
+
+    assert "text" in result
+    assert "blocks" in result
+    assert "metadata" in result
+
+    assert result["metadata"]["source"] == "ocr"
+
+def test_preprocessing():
+    file_path = "tests/fixtures/sample_invoice.pdf"
+
+    images = convert_to_images(file_path)
+    processed = preprocess_image(images[0])
+
+    from PIL.Image import Image
+    assert isinstance(processed, Image)
