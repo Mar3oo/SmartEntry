@@ -1,6 +1,7 @@
 import pytest
 from app.services.detection.input_classifier import classify, InputClassifierError
 from app.services.pdf.pdfplumber_service import extract
+from app.services.pdf.pymupdf_service import convert_to_images
 
 
 def test_classify_pdf(tmp_path):
@@ -39,3 +40,15 @@ def test_pdfplumber_extract():
     assert isinstance(result["text"], str)
     assert isinstance(result["blocks"], list)
     assert result["metadata"]["source"] == "pdf"
+    
+def test_pymupdf_convert_to_images():
+    file_path = "tests/fixtures/sample_invoice.pdf"
+
+    images = convert_to_images(file_path)
+
+    assert isinstance(images, list)
+    assert len(images) > 0
+
+    # check first item is image
+    from PIL.Image import Image
+    assert isinstance(images[0], Image)
