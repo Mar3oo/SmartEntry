@@ -1,7 +1,7 @@
 import easyocr
 import numpy as np
-from typing import List, Dict, Any
-from PIL.Image import Image
+from app.services.pdf.pymupdf_service import convert_to_images
+
 
 
 class OCRExtractionError(Exception):
@@ -12,45 +12,50 @@ class EasyOCRService:
     def __init__(self):
         self.reader = easyocr.Reader(['en'], gpu=False)
 
-    def extract(self, images: List[Image]) -> Dict[str, Any]:
-        try:
-            full_text = []
-            blocks = []
+    def extract(self, file_path: str) -> dict:
 
-            for page_idx, image in enumerate(images, start=1):
+        images = convert_to_images(file_path)
 
-                image_np = np.array(image)
-                results = self.reader.readtext(image_np)
+        full_text = []
+        blocks = []
 
-                page_text_parts = []
+        for page_idx, image in enumerate(images, start=1):
 
-                for (bbox, text, confidence) in results:
-                    page_text_parts.append(text)
+            image_np = np.array(image)
+            results = self.reader.readtext(image_np)
 
-                    x_coords = [p[0] for p in bbox]
-                    y_coords = [p[1] for p in bbox]
+            page_text_parts = []
 
-                    blocks.append({
-                        "text": text,
-                        "bbox": [
-                            min(x_coords),
-                            min(y_coords),
-                            max(x_coords),
-                            max(y_coords)
-                        ],
-                        "page": page_idx
-                    })
+            for (bbox, text, confidence) in results:
+                page_text_parts.append(text)
 
-                full_text.append(" ".join(page_text_parts))
+                x_coords = [p[0] for p in bbox]
+                y_coords = [p[1] for p in bbox]
 
-            return {
-                "text": "\n".join(full_text),
-                "blocks": blocks,
-                "metadata": {
-                    "source": "ocr",
-                    "pages": len(images)
-                }
+                blocks.append({
+                    "text": text,
+                    "bbox": [
+                        min(x_coords),
+                        min(y_coords),
+                        max(x_coords),
+                        max(y_coords)
+                    ],
+                    "page": page_idx
+                })
+
+            full_text.append(" ".join(page_text_parts))
+
+        return {
+            "text": "\n".join(full_text),
+            "blocks": blocks,
+            "metadata": {
+                "source": "ocr",
+                "pages": len(images)  # ✅ صح
             }
+        }
+class OCRService:
+    def __init__(self):
+        self.service = EasyOCRService()
 
-        except Exception as e:
-            raise OCRExtractionError(f"OCR extraction failed: {str(e)}")
+    def extract(self, file_path: str) -> dict:
+        return self.service.extract(file_path)

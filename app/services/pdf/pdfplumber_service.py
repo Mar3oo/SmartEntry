@@ -1,3 +1,4 @@
+from numpy import extract
 import pdfplumber
 from typing import Dict, Any, List
 
@@ -51,3 +52,10 @@ class PDFPlumberService:
 
         except Exception as e:
             raise PDFExtractionError(f"Failed to extract PDF: {str(e)}")
+
+class PDFService:
+    def __init__(self):
+        self.service = PDFPlumberService()
+
+    def extract(self, file_path: str) -> dict:
+        return self.service.extract(file_path)

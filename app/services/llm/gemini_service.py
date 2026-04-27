@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from typing import Dict, Any, Optional
 from PIL import Image
 
@@ -59,9 +60,16 @@ OCR Context (optional):
 {ocr_text if ocr_text else "None"}
 """
 
-    def extract(self, file_path: str, ocr_text: Optional[str] = None) -> Dict[str, Any]:
+    def extract(self, data: dict) -> Dict[str, Any]:
+      
+        file_path = data.get("file_path")
+        ocr_text = data.get("ocr_text")
+        
+        if not file_path:
+          raise GeminiServiceError("file_path is required")
+        
         if self.model is None:
-            raise GeminiServiceError("Gemini client not initialized (missing API key)")
+          raise GeminiServiceError("Gemini client not initialized (missing API key)")
 
         try:
             image = Image.open(file_path)
@@ -71,6 +79,10 @@ OCR Context (optional):
             response = self.model.generate_content([prompt, image])
 
             content = response.text.strip()
+            
+            json_match = re.search(r"\{.*\}", content, re.DOTALL)
+            if json_match:
+              content = json_match.group(0)
 
             return json.loads(content)
 

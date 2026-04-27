@@ -60,7 +60,11 @@ Text:
 {text}
 """
 
-    def extract(self, text: str, blocks: Optional[list] = None) -> Dict[str, Any]:
+    def extract(self, data: dict) -> Dict[str, Any]:
+        
+        text = data.get("text", "")
+        blocks = data.get("blocks", None)
+        
         if self.client is None:
             raise GroqServiceError("Groq client not initialized (missing API key)")
         
