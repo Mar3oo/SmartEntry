@@ -1,0 +1,9 @@
+{
+  "name": "invoice.invoice_number",
+  "invoice_date": "invoice.invoice_date",
+  "amount_total": "totals.total",
+  "currency_id": "currency",
+  "invoice_line_ids.description": "items[].description",
+  "invoice_line_ids.quantity": "items[].quantity",
+  "invoice_line_ids.price_unit": "items[].unit_price"
+}

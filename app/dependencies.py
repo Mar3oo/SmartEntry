@@ -7,15 +7,6 @@ from app.agents.mapping_agent import MappingAgent
 from app.memory.sqlite_store import SQLiteStore
 from app.memory.audit_log import AuditLog
 
-# from app.core.orchestrator import Orchestrator
-# from app.agents.extraction_agent import ExtractionAgent
-# from app.agents.vision_agent import VisionAgent
-# from app.agents.validation_agent import ValidationAgent
-# from app.agents.mapping_agent import MappingAgent
-
-# from app.memory.sqlite_store import SQLiteStore
-# from app.memory.audit_log import AuditLog
-
 # Services (IMPORTANT: wrappers aligned with contract)
 from app.services.pdf.pdfplumber_service import PDFService
 from app.services.ocr.easyocr_service import OCRService
@@ -40,6 +31,14 @@ def get_orchestrator():
     )
 
     vision_agent = VisionAgent(vision_service=gemini_service)
+        pdf_service=pdf_service,
+        ocr_service=ocr_service,
+        llm_service=groq_service
+    )
+
+    vision_agent = VisionAgent(
+        vision_service=gemini_service
+    )
 
     validation_agent = ValidationAgent()
 
@@ -62,6 +61,10 @@ def get_orchestrator():
         validation_agent=validation_agent,
         store=store,
         audit_log=audit_log,
+    )
+
+    return orchestrator, mapping_agent
+        audit_log=audit_log
     )
 
     return orchestrator, mapping_agent

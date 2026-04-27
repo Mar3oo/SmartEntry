@@ -2,5 +2,9 @@
   "invoice_number": "invoice.invoice_number",
   "invoice_date": "invoice.invoice_date",
   "total": "totals.total",
-  "currency": "currency"
+  "currency": "currency",
+  "item_description": "items[].description",
+  "quantity": "items[].quantity",
+  "unit_price": "items[].unit_price",
+  "total_price": "items[].total_price"
 }
