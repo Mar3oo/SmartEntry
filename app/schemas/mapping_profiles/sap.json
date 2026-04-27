@@ -1,0 +1,9 @@
+{
+  "BELNR": "invoice.invoice_number",
+  "BLDAT": "invoice.invoice_date",
+  "WRBTR": "totals.total",
+  "WAERS": "currency",
+  "ITEM_TEXT": "items[].description",
+  "MENGE": "items[].quantity",
+  "NETPR": "items[].unit_price"
+}
