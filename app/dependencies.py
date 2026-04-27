@@ -27,6 +27,10 @@ def get_orchestrator():
     # Agents
     # =========================
     extraction_agent = ExtractionAgent(
+        pdf_service=pdf_service, ocr_service=ocr_service, llm_service=groq_service
+    )
+
+    vision_agent = VisionAgent(vision_service=gemini_service)
         pdf_service=pdf_service,
         ocr_service=ocr_service,
         llm_service=groq_service
@@ -56,6 +60,10 @@ def get_orchestrator():
         vision_agent=vision_agent,
         validation_agent=validation_agent,
         store=store,
+        audit_log=audit_log,
+    )
+
+    return orchestrator, mapping_agent
         audit_log=audit_log
     )
 
