@@ -12,166 +12,63 @@ This file defines ALL shared interfaces between:
 """
 
 from typing import TypedDict, Literal, List, Optional, Dict, Any
+from pydantic import BaseModel, Field
 from app.schemas.base_schema import BaseDocumentSchema
 
 
-# =========================================================
-# 🔹 1. INPUT CLASSIFICATION
-# =========================================================
-
-InputType = Literal["pdf", "scanned_pdf", "image"]
+# =========================
+# 1. INPUT CONTRACT
+# =========================
 
 
-def classify_input(file_path: str) -> InputType:
-    """
-    Decide the type of input file.
-
-    Returns:
-        "pdf"          → clean digital PDF (Path A)
-        "scanned_pdf"  → PDF with images (Path B)
-        "image"        → photo / noisy input (Path C)
-    """
-    ...
+class PipelineInput(BaseModel):
+    file_id: str
+    file_path: str
+    file_type: Literal["pdf", "image"]
 
 
-# =========================================================
-# 🔹 2. PIPELINE OUTPUT → AGENTS INPUT
-# =========================================================
+# =========================
+# 2. EXTRACTION CONTRACT
+# =========================
 
 
-class ExtractionInput(TypedDict):
-    """
-    This is the ONLY thing the pipeline sends to agents.
-    """
-
+class TextBlock(BaseModel):
     text: str
-    source_type: Literal["pdf", "ocr", "image"]
-    metadata: Optional[Dict[str, Any]]  # optional debug info
+    bbox: Optional[List[float]] = Field(
+        default=None, description="Bounding box [x1, y1, x2, y2]"
+    )
+    page: Optional[int] = None
 
 
-# =========================================================
-# 🔹 3. PDF SERVICES
-# =========================================================
+class ExtractionMetadata(BaseModel):
+    source: Literal["pdf", "ocr"]
+    pages: Optional[int] = None
 
 
-def extract_text_from_pdf(file_path: str) -> str:
-    """
-    Extract text from clean PDF (pdfplumber).
-
-    Path A
-    """
-    ...
+class ExtractionResult(BaseModel):
+    text: str
+    blocks: List[TextBlock] = []
+    metadata: ExtractionMetadata
 
 
-def extract_images_from_pdf(file_path: str) -> List[str]:
-    """
-    Convert scanned PDF into images (PyMuPDF).
-
-    Returns:
-        List of image file paths
-    """
-    ...
+# =========================
+# 3. AGENT FLOW CONTRACT
+# =========================
 
 
-# =========================================================
-# 🔹 4. OCR SERVICE
-# =========================================================
+class AgentState(BaseModel):
+    file_id: str
 
+    # raw input
+    input: PipelineInput
 
-def extract_text_from_image(image_path: str) -> str:
-    """
-    Extract raw text from image using OCR (EasyOCR).
-    """
-    ...
+    # extracted content
+    extraction: Optional[ExtractionResult] = None
 
+    # intermediate outputs
+    structured_data: Optional[dict] = None
+    validated_data: Optional[dict] = None
+    mapped_data: Optional[dict] = None
 
-# =========================================================
-# 🔹 5. IMAGE PREPROCESSING (OPTIONAL)
-# =========================================================
-
-
-def preprocess_image(image_path: str) -> str:
-    """
-    Apply OpenCV preprocessing (denoise, threshold, etc.)
-
-    Returns:
-        Path to processed image
-    """
-    ...
-
-
-# =========================================================
-# 🔹 6. LLM SERVICES
-# =========================================================
-
-
-def groq_extract(text: str, prompt: str) -> Dict[str, Any]:
-    """
-    Send text to Groq (LLaMA) and return structured JSON.
-
-    Used by:
-        - extraction_agent
-        - validation_agent
-        - mapping_agent
-    """
-    ...
-
-
-def gemini_extract(image_path: str, prompt: str) -> Dict[str, Any]:
-    """
-    Send image to Gemini Vision model and return structured JSON.
-
-    Used by:
-        - vision_agent
-    """
-    ...
-
-
-# =========================================================
-# 🔹 7. AGENTS INTERFACE
-# =========================================================
-
-
-def extract_document(data: ExtractionInput) -> BaseDocumentSchema:
-    """
-    Main extraction entry point.
-
-    Behavior:
-        if source_type == "pdf" or "ocr":
-            → use extraction_agent (Groq)
-        if source_type == "image":
-            → use vision_agent (Gemini)
-
-    Returns:
-        BaseDocumentSchema
-    """
-    ...
-
-
-def validate_document(doc: BaseDocumentSchema) -> BaseDocumentSchema:
-    """
-    Clean and validate extracted data.
-    """
-    ...
-
-
-def map_document(doc: BaseDocumentSchema, target_schema: str) -> Dict[str, Any]:
-    """
-    Convert base schema → company-specific schema.
-    """
-    ...
-
-
-# =========================================================
-# 🔹 8. FINAL OUTPUT (FOR UI / EXPORT)
-# =========================================================
-
-
-class FinalOutput(TypedDict):
-    """
-    What the system returns to frontend / API.
-    """
-
-    data: Dict[str, Any]
-    confidence_score: Optional[float]
-    warnings: Optional[List[str]]
+    # errors
+    errors: List[str] = []

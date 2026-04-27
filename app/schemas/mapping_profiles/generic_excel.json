@@ -1,0 +1,6 @@
+{
+  "invoice_number": "invoice.invoice_number",
+  "invoice_date": "invoice.invoice_date",
+  "total": "totals.total",
+  "currency": "currency"
+}
