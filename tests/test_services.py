@@ -112,3 +112,45 @@ def test_gemini_prompt():
 
     assert "ONLY JSON" in prompt
     assert "Invoice #123" in prompt
+
+def sample_data():
+    return {
+        "invoice": {
+            "invoice_number": "123",
+            "invoice_date": "2024-01-01"
+        },
+        "items": [
+            {
+                "description": "item1",
+                "quantity": 2,
+                "unit_price": 10,
+                "total_price": 20
+            }
+        ],
+        "totals": {
+            "total": 20
+        },
+        "currency": "USD"
+    }
+
+
+def test_csv_export(tmp_path):
+    from app.services.exports.csv_exporter import CSVExporter
+
+    exporter = CSVExporter()
+    output = tmp_path / "test.csv"
+
+    path = exporter.export(sample_data(), str(output))
+
+    assert output.exists()
+
+
+def test_excel_export(tmp_path):
+    from app.services.exports.excel_exporter import ExcelExporter
+
+    exporter = ExcelExporter()
+    output = tmp_path / "test.xlsx"
+
+    path = exporter.export(sample_data(), str(output))
+
+    assert output.exists()
