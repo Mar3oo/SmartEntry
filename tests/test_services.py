@@ -7,6 +7,7 @@ from app.services.pdf.pdfplumber_service import PDFPlumberService
 from app.services.ocr.easyocr_service import EasyOCRService
 from app.services.ocr.ocr_pipeline_service import OCRPipelineService
 from app.services.vision.preprocessing import preprocess_image
+from app.services.llm.groq_service import GroqService
 
 
 def test_classify_pdf(tmp_path):
@@ -94,3 +95,11 @@ def test_preprocessing():
 
     from PIL.Image import Image
     assert isinstance(processed, Image)
+
+def test_groq_service_prompt():
+    service = GroqService()
+
+    prompt = service._build_prompt("Invoice #123 Total: 100 USD")
+
+    assert "Invoice #123" in prompt
+    assert "ONLY JSON" in prompt
