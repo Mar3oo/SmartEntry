@@ -1,7 +1,6 @@
 import streamlit as st
 import time
-from PIL import Image
-import io
+from components.preview import render_preview
 
 # =========================
 # Page Config
@@ -43,14 +42,7 @@ st.markdown("---")
 st.subheader("📄 Preview")
 
 if st.session_state.uploaded_file:
-
-    file = st.session_state.uploaded_file
-
-    if file.type == "application/pdf":
-        st.info("PDF preview not rendered (can be added later)")
-    else:
-        image = Image.open(file)
-        st.image(image, caption="Uploaded Image", use_container_width=True)
+    render_preview(st.session_state.uploaded_file)
 
 else:
     st.warning("No file uploaded")
