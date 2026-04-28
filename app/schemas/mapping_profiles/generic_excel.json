@@ -1,10 +1,15 @@
 {
   "invoice_number": "invoice.invoice_number",
   "invoice_date": "invoice.invoice_date",
-  "total": "totals.total",
+
+  "net_total": "totals.net_total",
+  "vat": "totals.vat",
+  "gross_total": "totals.gross_total",
+
   "currency": "currency",
-  "item_description": "items[].description",
-  "quantity": "items[].quantity",
-  "unit_price": "items[].unit_price",
-  "total_price": "items[].total_price"
+
+  "description": "item.description",
+  "Qty": "item.quantity",
+  "unit_price": "item.unit_price",
+  "total_price": "item.total_price"
 }

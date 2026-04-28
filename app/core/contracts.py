@@ -26,6 +26,9 @@ class PipelineInput(BaseModel):
     file_path: str
     file_type: Literal["pdf", "image"]
 
+    # 🔥 NEW: allow selecting mapping profile
+    profile: Optional[str] = "generic_excel.json"
+
 
 # =========================
 # 2. EXTRACTION CONTRACT
@@ -68,7 +71,9 @@ class AgentState(BaseModel):
     # intermediate outputs
     structured_data: Optional[dict] = None
     validated_data: Optional[dict] = None
-    mapped_data: Optional[dict] = None
+
+    # 🔥 FIX: mapped_data should be list of rows
+    mapped_data: Optional[List[Dict[str, Any]]] = None
 
     # errors
     errors: List[str] = []

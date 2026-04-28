@@ -27,9 +27,15 @@ class LineItem(BaseModel):
 
 
 class Totals(BaseModel):
-    subtotal: Optional[float] = None
-    tax: Optional[float] = None
-    total: Optional[float] = None
+    # New structure
+    net_total: Optional[float] = None
+    vat: Optional[float] = None
+    gross_total: Optional[float] = None
+
+    # Keep legacy compatibility (optional but smart)
+    # subtotal: Optional[float] = None
+    # tax: Optional[float] = None
+    # total: Optional[float] = None
 
 
 # =========================

@@ -1,10 +1,13 @@
 import os
 import json
 import re
-from typing import Dict, Any, Optional
-from PIL import Image
+from typing import Dict, Any
 
-import google.generativeai as genai
+from google import genai
+from dotenv import load_dotenv
+from google.genai import types
+
+load_dotenv()
 
 
 class GeminiServiceError(Exception):
@@ -12,79 +15,111 @@ class GeminiServiceError(Exception):
 
 
 class GeminiService:
-    def __init__(self, model: str = "gemini-1.5-flash"):
-        api_key = os.getenv("GEMINI_API_KEY")
+    def __init__(self, model: str = "gemini-2.5-flash"):
+        api_key = os.getenv("GOOGLE_API_KEY")
 
-        if api_key:
-            genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel(model)
-        else:
-            self.model = None
+        if not api_key:
+            raise GeminiServiceError("Missing GOOGLE_API_KEY")
 
-    def _build_prompt(self, ocr_text: Optional[str]) -> str:
-        return f"""
+        self.client = genai.Client(api_key=api_key)
+        self.model = model
+
+    def _build_prompt(self) -> str:
+        return """
 You are an invoice extraction system.
 
-Extract structured invoice data from the provided image.
+Extract structured invoice data from the image.
 
 Return ONLY valid JSON with this schema:
 
-{{
+{
   "supplier": null,
   "customer": null,
-  "invoice": {{
+  "invoice": {
     "invoice_number": string | null,
     "invoice_date": string | null
-  }},
+  },
   "items": [
-    {{
+    {
       "description": string | null,
       "quantity": number | null,
       "unit_price": number | null,
       "total_price": number | null
-    }}
+    }
   ],
-  "totals": {{
-    "total": number | null
-  }},
+  "totals": {
+    "net_total": number | null,
+    "vat": number | null,
+    "gross_total": number | null
+  },
   "currency": string | null,
-  "extra_fields": {{}}
-}}
+  "extra_fields": {}
+}
 
-Rules:
-- Output ONLY JSON
-- Use null for missing fields
+STRICT RULES:
+- JSON ONLY
+- No explanation
 - Numbers must be numeric
-
-OCR Context (optional):
-{ocr_text if ocr_text else "None"}
+- Use null for missing fields
+- currency should be ISO code (e.g. "USD", "EUR")
+- net_total = sum of item net totals
+- vat = total VAT amount if available
+- gross_total = net_total + vat
 """
 
+    def _safe_json(self, text: str):
+        try:
+            return json.loads(text)
+        except:
+            match = re.search(r"\{.*\}", text, re.DOTALL)
+            if match:
+                return json.loads(match.group())
+            raise ValueError(f"Invalid JSON: {text}")
+
+    def _normalize(self, data: dict):
+        for field in ["supplier", "customer"]:
+            val = data.get(field)
+            if isinstance(val, str):
+                data[field] = {"name": val, "address": None, "tax_id": None}
+            elif val is None:
+                data[field] = {"name": None, "address": None, "tax_id": None}
+        return data
+
     def extract(self, data: dict) -> Dict[str, Any]:
-      
         file_path = data.get("file_path")
-        ocr_text = data.get("ocr_text")
-        
+
         if not file_path:
-          raise GeminiServiceError("file_path is required")
-        
-        if self.model is None:
-          raise GeminiServiceError("Gemini client not initialized (missing API key)")
+            raise GeminiServiceError("file_path is required")
 
         try:
-            image = Image.open(file_path)
+            prompt = self._build_prompt()
 
-            prompt = self._build_prompt(ocr_text)
+            with open(file_path, "rb") as f:
+                image_bytes = f.read()
 
-            response = self.model.generate_content([prompt, image])
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=[
+                    types.Content(
+                        parts=[
+                            types.Part.from_text(text=prompt),
+                            types.Part.from_bytes(
+                                data=image_bytes, mime_type="image/jpeg"
+                            ),
+                        ]
+                    )
+                ],
+            )
 
-            content = response.text.strip()
-            
-            json_match = re.search(r"\{.*\}", content, re.DOTALL)
-            if json_match:
-              content = json_match.group(0)
+            content = response.text
 
-            return json.loads(content)
+            print("\n========== GEMINI RAW RESPONSE ==========")
+            print(content)
+            print("========================================\n")
+
+            parsed = self._safe_json(content)
+
+            return self._normalize(parsed)
 
         except Exception as e:
             raise GeminiServiceError(f"Gemini extraction failed: {str(e)}")

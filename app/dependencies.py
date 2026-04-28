@@ -7,7 +7,7 @@ from app.agents.mapping_agent import MappingAgent
 from app.memory.sqlite_store import SQLiteStore
 from app.memory.audit_log import AuditLog
 
-# Services (IMPORTANT: wrappers aligned with contract)
+# Services
 from app.services.pdf.pdfplumber_service import PDFService
 from app.services.ocr.easyocr_service import OCRService
 from app.services.llm.groq_service import GroqService
@@ -15,6 +15,12 @@ from app.services.llm.gemini_service import GeminiService
 
 
 def get_orchestrator():
+    # =========================
+    # Memory / Logging (MOVE UP 🔥)
+    # =========================
+    store = SQLiteStore()
+    audit_log = AuditLog()
+
     # =========================
     # Services
     # =========================
@@ -27,30 +33,19 @@ def get_orchestrator():
     # Agents
     # =========================
     extraction_agent = ExtractionAgent(
-        pdf_service=pdf_service, ocr_service=ocr_service, llm_service=groq_service
+        pdf_service=pdf_service,
+        ocr_service=ocr_service,
+        llm_service=groq_service,
     )
 
     vision_agent = VisionAgent(vision_service=gemini_service)
-        pdf_service=pdf_service,
-        ocr_service=ocr_service,
-        llm_service=groq_service
-    )
-
-    vision_agent = VisionAgent(
-        vision_service=gemini_service
-    )
 
     validation_agent = ValidationAgent()
 
     mapping_agent = MappingAgent(
-        profile_path="app/schemas/mapping_profiles/generic_excel.json"
+        profile_path="app/schemas/mapping_profiles/generic_excel.json",
+        store=store,  # ✅ now valid
     )
-
-    # =========================
-    # Memory / Logging
-    # =========================
-    store = SQLiteStore()
-    audit_log = AuditLog()
 
     # =========================
     # Orchestrator
@@ -61,10 +56,6 @@ def get_orchestrator():
         validation_agent=validation_agent,
         store=store,
         audit_log=audit_log,
-    )
-
-    return orchestrator, mapping_agent
-        audit_log=audit_log
     )
 
     return orchestrator, mapping_agent
