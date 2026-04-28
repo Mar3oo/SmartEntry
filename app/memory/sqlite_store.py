@@ -11,11 +11,11 @@ class SQLiteStore:
     def _create_tables(self):
         cursor = self.conn.cursor()
 
+        # 🔥 NEW STRUCTURE (full pipeline state)
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS documents (
             id TEXT PRIMARY KEY,
-            raw_text TEXT,
-            structured_data TEXT,
+            data TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """)
@@ -23,19 +23,17 @@ class SQLiteStore:
         self.conn.commit()
 
     # =========================
-    # INSERT
+    # INSERT / UPDATE
     # =========================
-    def save_document(
-        self, file_id: str, raw_text: str, structured_data: Dict[str, Any]
-    ):
+    def save_document(self, file_id: str, data: Dict[str, Any]):
         cursor = self.conn.cursor()
 
         cursor.execute(
             """
-        INSERT OR REPLACE INTO documents (id, raw_text, structured_data)
-        VALUES (?, ?, ?)
+        INSERT OR REPLACE INTO documents (id, data)
+        VALUES (?, ?)
         """,
-            (file_id, raw_text, json.dumps(structured_data)),
+            (file_id, json.dumps(data)),
         )
 
         self.conn.commit()
@@ -48,7 +46,7 @@ class SQLiteStore:
 
         cursor.execute(
             """
-        SELECT raw_text, structured_data FROM documents WHERE id=?
+        SELECT data FROM documents WHERE id=?
         """,
             (file_id,),
         )
@@ -58,4 +56,4 @@ class SQLiteStore:
         if not row:
             return None
 
-        return {"raw_text": row[0], "structured_data": json.loads(row[1])}
+        return json.loads(row[0])
