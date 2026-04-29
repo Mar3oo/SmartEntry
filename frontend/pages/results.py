@@ -1,115 +1,161 @@
 import streamlit as st
-import pandas as pd
 
-# =========================
-# Page Config
-# =========================
-st.set_page_config(page_title="Results", layout="wide")
+from api_client import APIError, EXCEL_MIME_TYPE, SmartEntryAPI
+from components.results_table import render_editable_results_table
+from state import (
+    current_profile,
+    init_session_state,
+    mark_saved,
+    set_processed_response,
+)
 
-st.title("📊 Extraction Results")
 
+st.set_page_config(page_title="Results", page_icon="📊", layout="wide")
+
+init_session_state()
+api = SmartEntryAPI()
+
+st.title("Extraction Results")
 st.markdown("---")
 
-# =========================
-# Check Session Data
-# =========================
-if "processed_data" not in st.session_state or st.session_state.processed_data is None:
-    st.error("No processed data found. Please upload and process a document first.")
+if not st.session_state.uploaded_file_id:
+    st.error("No uploaded file found. Upload a document first.")
     st.page_link("pages/upload.py", label="Go to Upload")
     st.stop()
 
-response = st.session_state.processed_data
+if st.session_state.processed_response is None:
+    st.warning("This file has not been processed yet.")
 
-# =========================
-# Validate Response
-# =========================
-if not response.get("success", False):
-    st.error("Processing failed.")
-    
-    errors = response.get("errors", [])
-    for err in errors:
-        st.error(err)
+    if st.button("Process with AI", type="primary"):
+        with st.spinner("Processing document with AI..."):
+            try:
+                response = api.process_document(
+                    file_id=st.session_state.uploaded_file_id,
+                    file_path=st.session_state.uploaded_file_path,
+                    file_type=st.session_state.uploaded_file_type,
+                    profile=current_profile(),
+                )
+            except APIError as exc:
+                st.error(str(exc))
+                if exc.details:
+                    st.caption(exc.details)
+                st.stop()
+            else:
+                set_processed_response(response)
+                st.rerun()
 
+    st.page_link("pages/upload.py", label="Back to Upload")
     st.stop()
 
-data = response.get("data")
+response = st.session_state.processed_response
+errors = response.get("errors", []) or []
+meta = response.get("meta") or {}
+rows = st.session_state.edited_rows or st.session_state.original_rows
 
-if not data:
-    st.warning("No data returned.")
-    st.stop()
-
-# =========================
-# Header Section
-# =========================
-st.subheader("📌 Invoice Summary")
+st.subheader("Pipeline Summary")
 
 col1, col2, col3, col4 = st.columns(4)
+col1.metric("File ID", st.session_state.uploaded_file_id[:8])
+col2.metric("Mapped Rows", len(rows))
+col3.metric("Profile Used", meta.get("profile_used") or current_profile())
+col4.metric("AI Status", "Needs review" if errors else "Ready for review")
 
-invoice = data.get("invoice", {})
-totals = data.get("totals", {})
+if st.session_state.last_saved_at:
+    st.success(f"Changes saved at {st.session_state.last_saved_at}.")
+elif st.session_state.save_feedback:
+    st.success(st.session_state.save_feedback)
 
-with col1:
-    st.metric("Invoice Number", invoice.get("invoice_number") or "-")
+if errors:
+    with st.expander("Processing errors", expanded=True):
+        for error in errors:
+            st.error(error)
 
-with col2:
-    st.metric("Invoice Date", invoice.get("invoice_date") or "-")
-
-with col3:
-    st.metric("Total", totals.get("total") or "-")
-
-with col4:
-    st.metric("Currency", data.get("currency") or "-")
-
-st.markdown("---")
-
-# =========================
-# Supplier / Customer
-# =========================
-st.subheader("🏢 Parties")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    st.markdown("### Supplier")
-    st.write(data.get("supplier") or "N/A")
-
-with col2:
-    st.markdown("### Customer")
-    st.write(data.get("customer") or "N/A")
+if not response.get("success", False):
+    st.warning(
+        "The backend reported an unsuccessful process run. Review errors before saving corrections."
+    )
 
 st.markdown("---")
+st.subheader("Editable Mapped Data")
 
-# =========================
-# Items Table
-# =========================
-st.subheader("🧾 Items")
-
-items = data.get("items", [])
-
-if items:
-    df = pd.DataFrame(items)
-    st.dataframe(df, use_container_width=True)
-else:
-    st.info("No items found.")
+editor_key = (
+    f"results_editor_{st.session_state.uploaded_file_id}_"
+    f"{st.session_state.results_editor_version}"
+)
+edited_rows, changes = render_editable_results_table(
+    original_rows=st.session_state.original_rows,
+    edited_rows=rows,
+    key=editor_key,
+)
+st.session_state.edited_rows = edited_rows
 
 st.markdown("---")
+st.subheader("Actions")
 
-# =========================
-# Raw JSON (Debug / Transparency)
-# =========================
-with st.expander("🔍 View Raw JSON"):
-    st.json(data)
+action_col1, action_col2, action_col3 = st.columns([1, 1, 1])
 
-# =========================
-# Navigation Buttons
-# =========================
-st.markdown("---")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    if st.button("🔙 Back to Upload"):
+with action_col1:
+    if st.button("Back to Upload", use_container_width=True):
         st.switch_page("pages/upload.py")
 
-with col2:
-    st.success("Ready for export (next step)")
+with action_col2:
+    if st.button(
+        "💾 Save Corrections",
+        disabled=not edited_rows,
+        type="primary" if changes else "secondary",
+        use_container_width=True,
+    ):
+        with st.spinner("Saving corrections to memory..."):
+            try:
+                save_response = api.save_corrections(
+                    file_id=st.session_state.uploaded_file_id,
+                    mapped_rows=edited_rows,
+                )
+            except APIError as exc:
+                st.error(str(exc))
+                if exc.details:
+                    st.caption(exc.details)
+            else:
+                if save_response.get("success", False):
+                    mark_saved(edited_rows)
+                    st.success("Changes saved.")
+                    st.rerun()
+                else:
+                    st.error("Corrections were not saved.")
+                    for error in save_response.get("errors", []):
+                        st.error(error)
+
+with action_col3:
+    if st.session_state.export_file:
+        st.download_button(
+            "📥 Download Excel",
+            data=st.session_state.export_file["content"],
+            file_name=st.session_state.export_file["filename"],
+            mime=EXCEL_MIME_TYPE,
+            use_container_width=True,
+        )
+    elif st.button("📥 Download Excel", disabled=not rows, use_container_width=True):
+        with st.spinner("Preparing Excel export..."):
+            try:
+                content, filename = api.export_excel(
+                    file_id=st.session_state.uploaded_file_id,
+                    file_path=st.session_state.uploaded_file_path,
+                    file_type=st.session_state.uploaded_file_type,
+                    profile=current_profile(),
+                )
+            except APIError as exc:
+                st.error(str(exc))
+                if exc.details:
+                    st.caption(exc.details)
+            else:
+                st.session_state.export_file = {
+                    "content": content,
+                    "filename": filename,
+                }
+                st.success("Excel file is ready.")
+
+with st.expander("Metadata", expanded=False):
+    st.json(meta)
+
+with st.expander("Raw backend response", expanded=False):
+    st.json(response)

@@ -1,112 +1,123 @@
 import streamlit as st
-import time
+
+from api_client import APIError, SmartEntryAPI, infer_file_type
 from components.preview import render_preview
-
-# =========================
-# Page Config
-# =========================
-st.set_page_config(page_title="Upload Document", layout="wide")
-
-st.title("📤 Upload Document")
-
-st.markdown("Upload a PDF or image to extract structured data.")
-
-st.markdown("---")
-
-# =========================
-# Initialize Session State
-# =========================
-if "processed_data" not in st.session_state:
-    st.session_state.processed_data = None
-
-if "uploaded_file" not in st.session_state:
-    st.session_state.uploaded_file = None
-
-# =========================
-# File Upload Section
-# =========================
-uploaded_file = st.file_uploader(
-    "Choose a file",
-    type=["pdf", "png", "jpg", "jpeg"]
+from state import (
+    current_profile,
+    init_session_state,
+    reset_for_selected_file,
+    set_processed_response,
 )
 
-# Save in session state
+
+st.set_page_config(page_title="Upload Document", page_icon="📤", layout="wide")
+
+init_session_state()
+api = SmartEntryAPI()
+
+st.title("Upload Document")
+st.markdown("Upload a PDF or image invoice, then send it through the AI pipeline.")
+st.markdown("---")
+
+left, right = st.columns([2, 1])
+
+with left:
+    uploaded_file = st.file_uploader(
+        "Choose an invoice file",
+        type=["pdf", "png", "jpg", "jpeg"],
+    )
+
+with right:
+    st.markdown("#### Current Mapping")
+    st.write(current_profile())
+    st.page_link("pages/schema_config.py", label="Change mapping profile")
+
 if uploaded_file:
-    st.session_state.uploaded_file = uploaded_file
-
-st.markdown("---")
-
-# =========================
-# Preview Section
-# =========================
-st.subheader("📄 Preview")
-
-if st.session_state.uploaded_file:
-    render_preview(st.session_state.uploaded_file)
-
+    reset_for_selected_file(uploaded_file)
 else:
-    st.warning("No file uploaded")
+    st.session_state.uploaded_file = None
+
+status_col1, status_col2, status_col3 = st.columns(3)
+status_col1.metric("Backend File ID", st.session_state.uploaded_file_id or "-")
+status_col2.metric("File Type", st.session_state.uploaded_file_type or "-")
+status_col3.metric(
+    "AI Status",
+    "Processed" if st.session_state.processed_response else "Waiting",
+)
 
 st.markdown("---")
 
-# =========================
-# Process Section
-# =========================
-st.subheader("⚙️ Process Document")
+preview_col, action_col = st.columns([3, 2])
 
-process_button = st.button("🚀 Process")
+with preview_col:
+    st.subheader("Preview")
+    if st.session_state.uploaded_file:
+        render_preview(st.session_state.uploaded_file)
+    else:
+        st.warning("No file selected.")
 
-if process_button:
+with action_col:
+    st.subheader("Actions")
 
     if not st.session_state.uploaded_file:
-        st.error("Please upload a file first.")
-    else:
-        with st.spinner("Processing document..."):
+        st.info("Select a file to enable upload and processing.")
 
-            # Simulate processing delay
-            time.sleep(2)
+    upload_disabled = st.session_state.uploaded_file is None
+    process_disabled = not st.session_state.uploaded_file_id
 
-            # =========================
-            # MOCK RESPONSE (matches backend contract)
-            # =========================
-            mock_response = {
-                "success": True,
-                "data": {
-                    "supplier": None,
-                    "customer": None,
-                    "invoice": {
-                        "invoice_number": "INV-123",
-                        "invoice_date": "2024-01-01"
-                    },
-                    "items": [
-                        {
-                            "description": "Sample Item",
-                            "quantity": 2,
-                            "unit_price": 50,
-                            "total_price": 100
-                        }
-                    ],
-                    "totals": {
-                        "total": 100
-                    },
-                    "currency": "USD",
-                    "extra_fields": {}
-                },
-                "errors": [],
-                "meta": None
-            }
+    if st.button(
+        "Upload to Backend",
+        disabled=upload_disabled,
+        use_container_width=True,
+    ):
+        with st.spinner("Uploading file to SmartEntry API..."):
+            try:
+                upload_response = api.upload_document(st.session_state.uploaded_file)
+            except APIError as exc:
+                st.error(str(exc))
+                if exc.details:
+                    st.caption(exc.details)
+            else:
+                st.session_state.upload_response = upload_response
+                st.session_state.uploaded_file_id = upload_response.get("file_id")
+                st.session_state.uploaded_file_path = upload_response.get("file_path")
+                st.session_state.uploaded_file_name = st.session_state.uploaded_file.name
+                st.session_state.uploaded_file_type = infer_file_type(
+                    st.session_state.uploaded_file
+                )
+                st.success("Upload complete.")
 
-            # Save result
-            st.session_state.processed_data = mock_response
+    if st.session_state.uploaded_file_id:
+        st.success("File is ready to process.")
+        st.caption(st.session_state.uploaded_file_path)
 
-        st.success("Processing completed!")
+    if st.button(
+        "Process with AI",
+        type="primary",
+        disabled=process_disabled,
+        use_container_width=True,
+    ):
+        with st.spinner("Processing document with AI..."):
+            try:
+                response = api.process_document(
+                    file_id=st.session_state.uploaded_file_id,
+                    file_path=st.session_state.uploaded_file_path,
+                    file_type=st.session_state.uploaded_file_type,
+                    profile=current_profile(),
+                )
+            except APIError as exc:
+                st.error(str(exc))
+                if exc.details:
+                    st.caption(exc.details)
+            else:
+                set_processed_response(response)
+                if response.get("success", False):
+                    st.success("Processing completed.")
+                else:
+                    st.warning("Processing completed with errors.")
+                st.switch_page("pages/results.py")
 
-        # Navigate to results page
-        st.switch_page("pages/results.py")
+    st.page_link("pages/results.py", label="Open Results")
 
 st.markdown("---")
-
-# =========================
-# Info Section
-# =========================
 st.info("Supported formats: PDF, PNG, JPG, JPEG")
